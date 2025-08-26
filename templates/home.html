@@ -1,0 +1,451 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Batch SMILES ↔ IUPAC Converter</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f8fa;
+        }
+        
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        }
+        
+        h1 {
+            color: #2c3e50;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        
+        .conversion-controls {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 20px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+        
+        select, button, input[type="file"] {
+            padding: 12px 20px;
+            border: 2px solid #ddd;
+            border-radius: 6px;
+            font-size: 16px;
+            background: white;
+        }
+        
+        button {
+            background: #3498db;
+            color: white;
+            border: none;
+            cursor: pointer;
+            transition: background 0.3s;
+        }
+        
+        button:hover {
+            background: #2980b9;
+        }
+        
+        button:disabled {
+            background: #bdc3c7;
+            cursor: not-allowed;
+        }
+        
+        .download-btn {
+            background: #27ae60;
+        }
+        
+        .download-btn:hover {
+            background: #229954;
+        }
+        
+        .upload-btn {
+            background: #9b59b6;
+        }
+        
+        .upload-btn:hover {
+            background: #8e44ad;
+        }
+        
+        .input-area {
+            margin-bottom: 20px;
+        }
+        
+        textarea {
+            width: 100%;
+            height: 200px;
+            padding: 15px;
+            border: 2px solid #ddd;
+            border-radius: 6px;
+            font-family: monospace;
+            font-size: 14px;
+            resize: vertical;
+            box-sizing: border-box;
+        }
+        
+        .file-upload {
+            margin: 15px 0;
+            padding: 15px;
+            border: 2px dashed #ddd;
+            border-radius: 6px;
+            text-align: center;
+        }
+        
+        .examples {
+            margin-bottom: 15px;
+            font-size: 14px;
+            color: #7f8c8d;
+        }
+        
+        .examples a {
+            color: #3498db;
+            text-decoration: none;
+            cursor: pointer;
+        }
+        
+        .examples a:hover {
+            text-decoration: underline;
+        }
+        
+        .loading {
+            text-align: center;
+            color: #7f8c8d;
+            margin: 20px 0;
+        }
+        
+        .results {
+            margin-top: 30px;
+        }
+        
+        .statistics {
+            background: #ecf0f1;
+            padding: 15px;
+            border-radius: 6px;
+            margin-bottom: 20px;
+            font-weight: bold;
+        }
+        
+        .result-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+            font-size: 14px;
+        }
+        
+        .result-table th,
+        .result-table td {
+            padding: 10px;
+            text-align: left;
+            border-bottom: 1px solid #ddd;
+            word-break: break-all;
+        }
+        
+        .result-table th {
+            background: #34495e;
+            color: white;
+        }
+        
+        .result-table tr:hover {
+            background: #f5f5f5;
+        }
+        
+        .success {
+            color: #27ae60;
+        }
+        
+        .error {
+            color: #e74c3c;
+        }
+        
+        .instructions {
+            background: #fff3cd;
+            padding: 15px;
+            border-radius: 6px;
+            margin-bottom: 20px;
+            border-left: 4px solid #ffc107;
+        }
+        
+        .csv-info {
+            background: #d4edda;
+            padding: 10px;
+            border-radius: 5px;
+            margin: 10px 0;
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Batch SMILES ↔ IUPAC Converter</h1>
+        
+        <div class="instructions">
+            <strong>Instructions:</strong> 
+            <ul>
+                <li>Enter compounds manually or upload a CSV file</li>
+                <li>CSV files should have a column named 'smiles', 'iupac', 'compound', or 'name'</li>
+                <li>Maximum 100 compounds per batch</li>
+                <li>Download results as CSV file</li>
+            </ul>
+        </div>
+        
+        <div class="conversion-controls">
+            <select id="conversionType">
+                <option value="smiles_to_iupac">SMILES → IUPAC Name</option>
+                <option value="iupac_to_smiles">IUPAC Name → SMILES</option>
+            </select>
+            
+            <button onclick="loadExamples()">Load Examples</button>
+            <button onclick="clearInput()">Clear Input</button>
+            <button onclick="startConversion()" id="convertBtn">Convert</button>
+            <button onclick="downloadResults()" class="download-btn" id="downloadBtn" style="display: none;">
+                Download CSV
+            </button>
+        </div>
+        
+        <div class="file-upload">
+            <h3>Upload CSV File</h3>
+            <input type="file" id="csvFile" accept=".csv,.txt">
+            <button onclick="uploadCSV()" class="upload-btn">Upload & Convert</button>
+            <div class="csv-info">
+                Supported CSV columns: smiles, iupac, compound, name, input, molecule
+            </div>
+        </div>
+        
+        <div class="input-area">
+            <div class="examples">
+                <span id="inputType">Enter compounds (one per line):</span>
+                <a onclick="loadExamples()">Load example compounds</a>
+            </div>
+            <textarea id="inputText" placeholder="Enter compounds, one per line..."></textarea>
+        </div>
+        
+        <div id="loading" class="loading" style="display: none;">
+            <p>Converting... This may take a while for large batches.</p>
+            <p>Please be patient - we're querying PubChem API with rate limiting.</p>
+        </div>
+        
+        <div id="results" class="results" style="display: none;">
+            <div class="statistics" id="statistics"></div>
+            
+            <table class="result-table" id="resultTable">
+                <thead>
+                    <tr>
+                        <th>Input</th>
+                        <th>Output</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody id="resultBody"></tbody>
+            </table>
+        </div>
+    </div>
+
+    <script>
+        let currentResults = [];
+        let currentCSVData = '';
+        let currentConversionType = '';
+        
+        function updateInputType() {
+            const conversionType = document.getElementById('conversionType').value;
+            currentConversionType = conversionType;
+            const inputTypeSpan = document.getElementById('inputType');
+            
+            if (conversionType === 'smiles_to_iupac') {
+                inputTypeSpan.textContent = 'Enter SMILES (one per line):';
+            } else {
+                inputTypeSpan.textContent = 'Enter IUPAC Names (one per line):';
+            }
+        }
+        
+        function loadExamples() {
+            const conversionType = document.getElementById('conversionType').value;
+            const inputType = conversionType === 'smiles_to_iupac' ? 'smiles' : 'iupac';
+            
+            fetch('/get_examples')
+                .then(response => response.json())
+                .then(data => {
+                    document.getElementById('inputText').value = data[inputType].join('\n');
+                })
+                .catch(error => {
+                    alert('Error loading examples: ' + error);
+                });
+        }
+        
+        function clearInput() {
+            document.getElementById('inputText').value = '';
+        }
+        
+        function startConversion() {
+            const inputText = document.getElementById('inputText').value.trim();
+            const conversionType = document.getElementById('conversionType').value;
+            currentConversionType = conversionType;
+            
+            if (!inputText) {
+                alert('Please enter some compounds to convert');
+                return;
+            }
+            
+            document.getElementById('loading').style.display = 'block';
+            document.getElementById('results').style.display = 'none';
+            document.getElementById('convertBtn').disabled = true;
+            
+            const formData = new FormData();
+            formData.append('conversion_type', conversionType);
+            formData.append('input_type', conversionType === 'smiles_to_iupac' ? 'smiles' : 'iupac');
+            formData.append('input_text', inputText);
+            
+            fetch('/batch_convert', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('convertBtn').disabled = false;
+                
+                if (data.success) {
+                    currentResults = data.results;
+                    currentCSVData = data.csv_data;
+                    displayResults(data.results, data.statistics);
+                    document.getElementById('downloadBtn').style.display = 'inline-block';
+                } else {
+                    alert('Error: ' + data.error);
+                }
+            })
+            .catch(error => {
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('convertBtn').disabled = false;
+                alert('Network error: ' + error);
+            });
+        }
+        
+        function uploadCSV() {
+            const fileInput = document.getElementById('csvFile');
+            const conversionType = document.getElementById('conversionType').value;
+            currentConversionType = conversionType;
+            
+            if (!fileInput.files || fileInput.files.length === 0) {
+                alert('Please select a CSV file to upload');
+                return;
+            }
+            
+            const file = fileInput.files[0];
+            const formData = new FormData();
+            formData.append('csv_file', file);
+            formData.append('conversion_type', conversionType);
+            
+            document.getElementById('loading').style.display = 'block';
+            document.getElementById('results').style.display = 'none';
+            
+            fetch('/upload_csv', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                document.getElementById('loading').style.display = 'none';
+                
+                if (data.success) {
+                    currentResults = data.results;
+                    currentCSVData = data.csv_data;
+                    displayResults(data.results, data.statistics);
+                    document.getElementById('downloadBtn').style.display = 'inline-block';
+                    
+                    // Clear file input
+                    fileInput.value = '';
+                } else {
+                    alert('Error: ' + data.error);
+                }
+            })
+            .catch(error => {
+                document.getElementById('loading').style.display = 'none';
+                alert('Network error: ' + error);
+            });
+        }
+        
+        function displayResults(results, statistics) {
+            const tableBody = document.getElementById('resultBody');
+            tableBody.innerHTML = '';
+            
+            results.forEach(result => {
+                const row = document.createElement('tr');
+                
+                const inputCell = document.createElement('td');
+                inputCell.textContent = result.input;
+                inputCell.style.fontFamily = 'monospace';
+                
+                const outputCell = document.createElement('td');
+                outputCell.textContent = result.output || 'N/A';
+                outputCell.style.fontFamily = 'monospace';
+                
+                const statusCell = document.createElement('td');
+                if (result.output) {
+                    statusCell.textContent = '✓ Success';
+                    statusCell.className = 'success';
+                } else {
+                    statusCell.textContent = '✗ Error: ' + result.error;
+                    statusCell.className = 'error';
+                }
+                
+                row.appendChild(inputCell);
+                row.appendChild(outputCell);
+                row.appendChild(statusCell);
+                tableBody.appendChild(row);
+            });
+            
+            document.getElementById('statistics').innerHTML = `
+                Total: ${statistics.total} | 
+                Successful: <span class="success">${statistics.successful}</span> | 
+                Failed: <span class="error">${statistics.failed}</span>
+            `;
+            
+            document.getElementById('results').style.display = 'block';
+        }
+        
+        function downloadResults() {
+            if (!currentCSVData) return;
+            
+            const formData = new FormData();
+            formData.append('csv_data', currentCSVData);
+            formData.append('conversion_type', currentConversionType);
+            
+            fetch('/download_csv', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => {
+                if (response.ok) {
+                    return response.blob();
+                }
+                throw new Error('Download failed');
+            })
+            .then(blob => {
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.style.display = 'none';
+                a.href = url;
+                a.download = `conversion_results_${currentConversionType}.csv`;
+                document.body.appendChild(a);
+                a.click();
+                window.URL.revokeObjectURL(url);
+                document.body.removeChild(a);
+            })
+            .catch(error => {
+                alert('Download error: ' + error);
+            });
+        }
+        
+        // Initialize
+        document.getElementById('conversionType').addEventListener('change', updateInputType);
+        updateInputType();
+    </script>
+</body>
+</html>
